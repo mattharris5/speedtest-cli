@@ -29,6 +29,8 @@ import signal
 import socket
 import timeit
 import threading
+import keen
+from datetime import datetime
 
 # Used for bound_interface
 socket_socket = socket.socket
@@ -635,6 +637,16 @@ def speedtest():
     print_('Upload: %0.2f M%s/s' %
            ((ulspeed / 1000 / 1000) * args.units[1], args.units[0]))
 
+    print_('Sending results to keen.io')
+    keen.add_event('SpeedLogs-%(isp)s' % config['client'], {
+        "download": ((dlspeed / 1000 / 1000) * args.units[1]),
+        "upload": ((ulspeed / 1000 / 1000) * args.units[1]),
+        "server": best,
+	"timestamp": split_datetime(datetime.now()),
+	"isp": config['client']['isp'],
+	"external_ip": config['client']['ip']
+    })
+
     if args.share and args.mini:
         print_('Cannot generate a speedtest.net share results image while '
                'testing against a Speedtest Mini server')
@@ -680,8 +692,54 @@ def speedtest():
         print_('Share results: http://www.speedtest.net/result/%s.png' %
                resultid[0])
 
+def split_datetime(timestamp_datetime):
+    '''
+    Split a timestamp in datetime format in all seperate components :
+      year, month, day of month, day of week,
+      hour (12 and 24 hour), minute, second
+    Parameters :
+    - timestamp_datetime : timestamp in datetime class format
+    '''
+    #if timestamp_datetime is None or type(timestamp_datetime) is not datetime:
+    #    raise TypeError("param %s should be a datetime instance" %
+    #                    'timestamp_datetime')
+
+    timestamp_dict = {}
+    timestamp_dict["isotimestamp"] = timestamp_datetime.isoformat()
+
+    # epoch = 1 Jan 1970
+    epoch = datetime.utcfromtimestamp(0)
+    # add timezone info to epoch if timestamp is timezone aware
+    if timestamp_datetime.tzname() is not None:
+        epoch = datetime.utcfromtimestamp(0).replace(tzinfo=tzutc())
+
+    # seconds since epoch
+    timestamp_dict["timestamp_seconds"] = \
+        (timestamp_datetime - epoch).total_seconds()
+
+    timestamp_dict["year"] = timestamp_datetime.strftime("%Y")
+    timestamp_dict["month"] = timestamp_datetime.strftime("%m")
+    timestamp_dict["month_short_en"] = timestamp_datetime.strftime("%b")
+    timestamp_dict["month_full_en"] = timestamp_datetime.strftime("%B")
+    timestamp_dict["day_of_month"] = timestamp_datetime.strftime("%d")
+    timestamp_dict["day_of_week"] = timestamp_datetime.strftime("%w")
+    timestamp_dict["day_of_week_short_en"] = timestamp_datetime.strftime("%a")
+    timestamp_dict["day_of_week_full_en"] = timestamp_datetime.strftime("%A")
+    timestamp_dict["hour_12"] = timestamp_datetime.strftime("%I")
+    timestamp_dict["hour_ampm"] = timestamp_datetime.strftime("%p")
+    timestamp_dict["hour_24"] = timestamp_datetime.strftime("%H")
+    timestamp_dict["minute"] = timestamp_datetime.strftime("%M")
+    timestamp_dict["second"] = timestamp_datetime.strftime("%S")
+    timestamp_dict["microsecond"] = timestamp_datetime.strftime("%f")
+    timestamp_dict["timezone"] = timestamp_datetime.strftime("%Z")
+    timestamp_dict["timezone_offset"] = timestamp_datetime.strftime("%z")
+    timestamp_dict["hour_minute"] = timestamp_datetime.strftime("%H:%M")
+
+    return timestamp_dict
+
 
 def main():
+    #print_(split_datetime(datetime.now()))
     try:
         speedtest()
     except KeyboardInterrupt:
